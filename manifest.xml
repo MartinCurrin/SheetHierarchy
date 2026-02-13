@@ -6,8 +6,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Sheet Hierarchy"/>
   <Description DefaultValue="Organize Excel sheets in folders and hierarchies"/>
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
+  <IconUrl DefaultValue="https://martincurrinbsc.github.io/SheetHierarchy/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://martincurrinbsc.github.io/SheetHierarchy/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://www.bscglobal.com"/>
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
@@ -16,7 +16,7 @@
     <Host Name="Workbook"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
+    <SourceLocation DefaultValue="https://martincurrinbsc.github.io/SheetHierarchy/src/taskpane/taskpane.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -68,8 +68,8 @@
       </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812"/>
-        <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://martincurrinbsc.github.io/SheetHierarchy/src/commands/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://martincurrinbsc.github.io/SheetHierarchy/src/taskpane/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Welcome to Sheet Hierarchy"/>
