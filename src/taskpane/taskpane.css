@@ -1,0 +1,217 @@
+body {
+    margin: 0;
+    padding: 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f3f2f1;
+}
+
+#content {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #323130;
+}
+
+/* Main controls */
+#controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+/* Excel Web only controls */
+#excel-web-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px dashed #0078d4;
+}
+
+#excel-web-controls::before {
+    content: "Excel Web Only:";
+    font-size: 11px;
+    color: #605e5c;
+    font-weight: 600;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.control-btn {
+    padding: 10px 12px;
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+    background-color: #106ebe;
+}
+
+.control-btn:active {
+    background-color: #005a9e;
+}
+
+.save-btn {
+    background-color: #107c10;
+}
+
+.save-btn:hover {
+    background-color: #0e6b0e;
+}
+
+/* Tree View Container */
+#sheet-tree {
+    flex: 1;
+    overflow: auto;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    min-height: 300px;
+}
+
+/* ===== TREE STYLING - SMALL TEXT, PROPER ICON SPACE ===== */
+
+/* Small text with proper spacing for icons */
+#sheet-tree .jstree-anchor {
+    font-size: 12px !important;
+    line-height: 24px !important;
+    height: 24px !important;
+    padding: 0 4px;
+}
+
+#sheet-tree .jstree-node {
+    line-height: 24px !important;
+    min-height: 24px !important;
+}
+
+/* Icon size - match jsTree's default 24x24 to prevent clipping */
+#sheet-tree .jstree-icon {
+    width: 24px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+}
+
+/* Hover state */
+#sheet-tree .jstree-hovered {
+    background: #e5f3ff;
+    border-radius: 3px;
+}
+
+/* Selected state */
+#sheet-tree .jstree-clicked {
+    background: #cce8ff;
+    border-radius: 3px;
+}
+
+/* Message Bar */
+.message-bar {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background-color: #f3f2f1;
+    border-left: 4px solid #0078d4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.message-bar.error {
+    background-color: #fde7e9;
+    border-left-color: #a80000;
+    color: #a80000;
+}
+
+.message-bar.success {
+    background-color: #dff6dd;
+    border-left-color: #107c10;
+    color: #107c10;
+}
+
+.message-bar.warning {
+    background-color: #fff4ce;
+    border-left-color: #ffb900;
+    color: #8a6116;
+}
+
+.message-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 10px;
+    color: inherit;
+}
+
+/* Custom Prompt/Confirm Dialog */
+.custom-prompt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.custom-prompt {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    min-width: 250px;
+    max-width: 90%;
+}
+
+.custom-prompt p {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    color: #323130;
+}
+
+.custom-prompt input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #8a8886;
+    border-radius: 2px;
+    font-size: 14px;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+}
+
+.custom-prompt input:focus {
+    outline: none;
+    border-color: #0078d4;
+}
+
+.prompt-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.prompt-buttons .control-btn {
+    flex: 0 0 auto;
+    min-width: 70px;
+}

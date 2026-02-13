@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Generic Sheet Hierarchy</title>
+
+    <!-- Office JavaScript API -->
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <!-- jQuery (required for jsTree) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- jsTree CSS - Updated version for better consistency -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/themes/default/style.min.css" />
+    
+    <!-- jsTree JS - Updated version to match CSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/jstree.min.js"></script>
+
+    <!-- Your files -->
+    <link href="taskpane.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+    <div id="content">
+        <h2>Sheet Hierarchy</h2>
+        <div id="message-bar" class="message-bar" style="display: none;">
+            <span id="message-text"></span>
+            <button id="message-close" class="message-close">×</button>
+        </div>
+        
+        <!-- Control Buttons -->
+        <div id="controls">
+            <button id="add-folder" class="control-btn" title="Add Folder">
+                📁 Add Folder
+            </button>
+            <button id="add-sheet" class="control-btn" title="Add Sheet">
+                📄 Add Sheet
+            </button>
+            <button id="hide-others" class="control-btn" title="Hide all sheets except the active one">
+                👁️ Hide Others
+            </button>
+        </div>
+
+        <!-- Separate section for Excel Web only buttons -->
+        <div id="excel-web-controls">
+            <button id="refresh-tree" class="control-btn" title="Refresh tree from Excel">
+                🔄 Refresh
+            </button>
+            <button id="save-structure" class="control-btn save-btn" title="Save structure to workbook">
+                💾 Save
+            </button>
+        </div>
+
+        <!-- Tree View -->
+        <div id="sheet-tree"></div>
+        
+    </div>
+
+
+</body>
+</html>
