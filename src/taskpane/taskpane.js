@@ -4,33 +4,35 @@ let treeInitialized = false;
 let eventHandlersRegistered = false;
 let saveTimeout = null;
 let copiedNodes = [];
+let isProcessingExcelEvent = false;
+let saveDebounceTimeout = null;
 
-// Message bar helper functions
+// Status bar helper functions
 function showMessage(message, type = 'info') {
-    const messageBar = document.getElementById('message-bar');
-    const messageText = document.getElementById('message-text');
+    const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
     
-    messageText.textContent = message;
-    messageBar.className = 'message-bar ' + type;
-    messageBar.style.display = 'flex';
+    statusText.textContent = message;
+    statusBar.className = 'status-bar ' + type;
     
-    // Auto-hide after 5 seconds for success messages
+    // Auto-clear success messages after 5 seconds
     if (type === 'success') {
         setTimeout(() => {
-            messageBar.style.display = 'none';
+            statusText.textContent = 'Ready';
+            statusBar.className = 'status-bar';
         }, 5000);
     }
 }
 
 function hideMessage() {
-    document.getElementById('message-bar').style.display = 'none';
+  document.getElementById('message-bar').style.display = 'none';
 }
 
 // Custom prompt function
 function showPrompt(message, defaultValue = '', callback) {
-    const promptDiv = document.createElement('div');
-    promptDiv.className = 'custom-prompt-overlay';
-    promptDiv.innerHTML = `
+  const promptDiv = document.createElement('div');
+  promptDiv.className = 'custom-prompt-overlay';
+  promptDiv.innerHTML = `
         <div class="custom-prompt">
             <p>${message}</p>
             <input type="text" id="prompt-input" value="${defaultValue}" />
@@ -40,36 +42,36 @@ function showPrompt(message, defaultValue = '', callback) {
             </div>
         </div>
     `;
-    
-    document.body.appendChild(promptDiv);
-    
-    const input = document.getElementById('prompt-input');
-    input.focus();
-    input.select();
-    
-    document.getElementById('prompt-ok').onclick = () => {
-        const value = input.value;
-        document.body.removeChild(promptDiv);
-        callback(value);
-    };
-    
-    document.getElementById('prompt-cancel').onclick = () => {
-        document.body.removeChild(promptDiv);
-        callback(null);
-    };
-    
-    input.onkeypress = (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('prompt-ok').click();
-        }
-    };
+
+  document.body.appendChild(promptDiv);
+
+  const input = document.getElementById('prompt-input');
+  input.focus();
+  input.select();
+
+  document.getElementById('prompt-ok').onclick = () => {
+    const value = input.value;
+    document.body.removeChild(promptDiv);
+    callback(value);
+  };
+
+  document.getElementById('prompt-cancel').onclick = () => {
+    document.body.removeChild(promptDiv);
+    callback(null);
+  };
+
+  input.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      document.getElementById('prompt-ok').click();
+    }
+  };
 }
 
 // Custom confirm function
 function showConfirm(message, callback) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.className = 'custom-prompt-overlay';
-    confirmDiv.innerHTML = `
+  const confirmDiv = document.createElement('div');
+  confirmDiv.className = 'custom-prompt-overlay';
+  confirmDiv.innerHTML = `
         <div class="custom-prompt">
             <p>${message}</p>
             <div class="prompt-buttons">
@@ -78,36 +80,35 @@ function showConfirm(message, callback) {
             </div>
         </div>
     `;
-    
-    document.body.appendChild(confirmDiv);
-    
-    document.getElementById('confirm-yes').onclick = () => {
-        document.body.removeChild(confirmDiv);
-        callback(true);
-    };
-    
-    document.getElementById('confirm-no').onclick = () => {
-        document.body.removeChild(confirmDiv);
-        callback(false);
-    };
+
+  document.body.appendChild(confirmDiv);
+
+  document.getElementById('confirm-yes').onclick = () => {
+    document.body.removeChild(confirmDiv);
+    callback(true);
+  };
+
+  document.getElementById('confirm-no').onclick = () => {
+    document.body.removeChild(confirmDiv);
+    callback(false);
+  };
 }
 
 
 Office.onReady((info) => {
   if (info.host === Office.HostType.Excel) {
     console.log('Office.js ready');
-    
+
     // Button event listeners
     document.getElementById("add-folder").onclick = addFolder;
     document.getElementById("add-sheet").onclick = addSheet;
     document.getElementById("refresh-tree").onclick = refreshTree;
     document.getElementById("save-structure").onclick = saveStructure;
-    document.getElementById("message-close").onclick = hideMessage;
     document.getElementById("hide-others").onclick = hideOtherSheets;
-    
+
     // Initialize the tree
     initializeTree();
-    
+
     // Load saved structure or create default
     setTimeout(() => {
       loadStructure();
@@ -119,17 +120,17 @@ Office.onReady((info) => {
 // Initialize jsTree with drag & drop
 function initializeTree() {
   console.log('Initializing tree...');
-  
+
   $('#sheet-tree').jstree({
     'core': {
       'data': [],
       'check_callback': true,
       'themes': {
-        'name': 'default',          
+        'name': 'default',
         'responsive': false,
         'dots': false,
-        'icons': true,               
-        'stripes': false         
+        'icons': true,
+        'stripes': false
       }
     },
     'plugins': ['dnd', 'contextmenu', 'types'],
@@ -142,7 +143,7 @@ function initializeTree() {
       }
     },
     'dnd': {
-      'is_draggable': function(nodes) {
+      'is_draggable': function (nodes) {
         return true;
       },
       'check_while_dragging': true,
@@ -157,10 +158,10 @@ function initializeTree() {
     'contextmenu': {
       'items': customContextMenu
     }
-  }).on('ready.jstree', function() {
+  }).on('ready.jstree', function () {
     treeInitialized = true;
     console.log('Tree initialized and ready');
-    
+
   });
 
   // Handle node click
@@ -173,26 +174,19 @@ function initializeTree() {
   // Handle drag and drop
   $('#sheet-tree').on('move_node.jstree', function (e, data) {
     console.log('Node moved, saving structure...');
-    
-    // Clear any pending save
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-    }
-    
-    // Schedule a new save (debounced - only saves once after all moves complete)
-    saveTimeout = setTimeout(() => {
-      saveStructureToStorage()
-        .catch(err => {
-          console.error('Save failed after move:', err);
-          showMessage('Moved but save failed: ' + err.message, 'warning');
-        });
-      saveTimeout = null;
-    }, 200);
+    debouncedSave();
   });
 
   // Handle rename
   $('#sheet-tree').on('rename_node.jstree', function (e, data) {
     console.log('Node renamed');
+
+    // ✅ ADD THIS CHECK AT THE VERY START
+    if (isProcessingExcelEvent) {
+      console.log('Ignoring rename event - triggered by Excel event handler');
+      return;
+    }
+
     if (data.node.data && data.node.data.isWorksheet) {
       const oldName = data.node.data.sheetName;
       const newName = data.text;
@@ -227,10 +221,12 @@ function initializeTree() {
   });
 
   // Handle clicking on empty space to deselect
-  $('#sheet-tree').on('click', function(e) {
-    // Check if the click was directly on the container (empty space)
-    // and not on a node or its children
-    if (e.target.id === 'sheet-tree' || $(e.target).hasClass('jstree-container-ul')) {
+  $('#sheet-tree').on('click', function (e) {
+    // Check if the click was NOT on a node anchor, icon, or input field
+    // If true, it means we clicked on empty/background space
+    if (!$(e.target).closest('.jstree-anchor').length &&
+      !$(e.target).hasClass('jstree-icon') &&
+      !$(e.target).is('input')) {
       const tree = $('#sheet-tree').jstree(true);
       tree.deselect_all();
       console.log('Clicked empty space - deselected all nodes');
@@ -238,20 +234,20 @@ function initializeTree() {
   });
 
   // Handle Delete key press
-  $(document).on('keydown', function(e) {
+  $(document).on('keydown', function (e) {
     // Check if Delete key was pressed
     if (e.key === 'Delete' || e.keyCode === 46) {
       const tree = $('#sheet-tree').jstree(true);
       const selected = tree.get_selected(true); // Get selected nodes as objects
-      
+
       if (selected.length === 0) {
         return; // Nothing selected
       }
-      
+
       // Separate sheets and folders
       const sheets = selected.filter(node => node.data && node.data.isWorksheet);
       const folders = selected.filter(node => !node.data || !node.data.isWorksheet);
-      
+
       // Build confirmation message
       let message = 'Delete the following items?\n\n';
       if (sheets.length > 0) {
@@ -262,7 +258,7 @@ function initializeTree() {
         message += `\nFolders (${folders.length}):\n`;
         folders.forEach(node => message += `  • ${node.text}\n`);
       }
-      
+
       showConfirm(message, async (confirmed) => {
         if (confirmed) {
           try {
@@ -276,19 +272,19 @@ function initializeTree() {
                 showMessage(`Error deleting sheet "${node.text}": ${error.message}`, 'error');
               }
             }
-            
+
             // Delete all nodes from tree (both sheets and folders)
             for (const node of selected) {
               tree.delete_node(node);
             }
-            
+
             // Save structure
             await saveStructureToStorage();
-            
+
             // Show success message
             const totalDeleted = selected.length;
             showMessage(`Successfully deleted ${totalDeleted} item(s)`, 'success');
-            
+
           } catch (error) {
             console.error('Delete operation failed:', error);
             showMessage('Error during deletion: ' + error.message, 'error');
@@ -299,13 +295,13 @@ function initializeTree() {
   });
 
   // Handle Copy/Paste keyboard shortcuts
-  $(document).on('keydown', function(e) {
+  $(document).on('keydown', function (e) {
     // Ctrl+C or Cmd+C (Mac)
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       e.preventDefault();
       copyNodes();
     }
-    
+
     // Ctrl+V or Cmd+V (Mac)
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
@@ -318,7 +314,7 @@ function initializeTree() {
 // Add a new folder
 function addFolder() {
   console.log('Add folder clicked');
-  
+
   if (!treeInitialized) {
     showMessage('Tree is still loading, please wait...', 'warning');
     return;
@@ -340,11 +336,11 @@ function addFolder() {
     } else {
       console.log('Adding folder under selected node:', parent);
     }
-    
+
     showPrompt('Enter folder name:', 'New Folder', (folderName) => {
       if (folderName && folderName.trim() !== '') {
         console.log('Creating folder:', folderName);
-        
+
         const nodeId = 'folder_' + Date.now();
         const newNode = tree.create_node(parent, {
           id: nodeId,
@@ -356,9 +352,9 @@ function addFolder() {
             nodeType: 'folder'
           }
         }, 'last');
-        
+
         console.log('Node created:', newNode);
-        
+
         if (newNode) {
           tree.open_node(parent);
           console.log('Saving structure...');
@@ -384,7 +380,7 @@ function addFolder() {
 // Add a new sheet
 async function addSheet() {
   console.log('Add sheet clicked');
-  
+
   if (!treeInitialized) {
     showMessage('Tree is still loading, please wait...', 'warning');
     return;
@@ -398,41 +394,41 @@ async function addSheet() {
 
   const selected = tree.get_selected();
   const parent = selected.length > 0 ? selected[0] : '#';
-  
+
   showPrompt('Enter sheet name:', 'New Sheet', async (sheetName) => {
     if (sheetName && sheetName.trim() !== '') {
       try {
         console.log('Creating sheet:', sheetName);
-        
+
         await Excel.run(async (context) => {
           // Get all existing sheet names
           const sheets = context.workbook.worksheets;
           sheets.load("items/name");
           await context.sync();
-          
+
           const existingNames = sheets.items.map(s => s.name.toLowerCase());
-          
+
           // Check if the name exists and find next available name
           let finalName = sheetName;
           let counter = 2;
-          
+
           while (existingNames.includes(finalName.toLowerCase())) {
             finalName = `${sheetName} (${counter})`;
             counter++;
           }
-          
+
           // Log if name was changed
           if (finalName !== sheetName) {
             console.log(`Sheet name "${sheetName}" already exists, using "${finalName}" instead`);
           }
-          
+
           // Create the sheet with the final name
           const sheet = context.workbook.worksheets.add(finalName);
           sheet.activate();
           await context.sync();
-          
+
           console.log('Sheet created in Excel:', finalName);
-          
+
           const nodeId = 'sheet_' + Date.now();
           const newNode = tree.create_node(parent, {
             id: nodeId,
@@ -445,11 +441,11 @@ async function addSheet() {
               nodeType: 'sheet'
             }
           }, 'last');
-          
+
           if (newNode) {
             tree.open_node(parent);
             await saveStructureToStorage();
-            
+
             // Show appropriate message
             if (finalName !== sheetName) {
               showMessage(`Sheet "${sheetName}" already exists. Created "${finalName}" instead.`, 'success');
@@ -482,13 +478,13 @@ async function refreshTree() {
 
       const tree = $('#sheet-tree').jstree(true);
       const currentNodes = tree.get_json('#', { flat: true });
-      
+
       const existingSheetNames = currentNodes
         .filter(node => node.data && node.data.isWorksheet)
         .map(node => node.data.sheetName);
-      
+
       const excelSheetNames = sheets.items.map(sheet => sheet.name);
-      
+
       // Add missing sheets to root
       excelSheetNames.forEach(sheetName => {
         if (!existingSheetNames.includes(sheetName)) {
@@ -506,14 +502,14 @@ async function refreshTree() {
           }, 'last');
         }
       });
-      
+
       // Remove nodes for deleted sheets
       currentNodes.forEach(node => {
         if (node.data && node.data.isWorksheet && !excelSheetNames.includes(node.data.sheetName)) {
           tree.delete_node(node.id);
         }
       });
-      
+
       await saveStructureToStorage();
       showMessage('Tree refreshed successfully!', 'success');
     });
@@ -530,18 +526,18 @@ async function navigateToSheet(sheetName) {
       const sheet = context.workbook.worksheets.getItem(sheetName);
       sheet.load("visibility");
       await context.sync();
-      
+
       // If sheet is hidden, unhide it first
       if (sheet.visibility === Excel.SheetVisibility.hidden) {
         console.log(`Sheet "${sheetName}" is hidden, unhiding...`);
         sheet.visibility = Excel.SheetVisibility.visible;
         await context.sync();
       }
-      
+
       // Now activate/select the sheet
       sheet.activate();
       await context.sync();
-      
+
       console.log(`Navigated to sheet: ${sheetName}`);
     });
   } catch (error) {
@@ -567,7 +563,7 @@ async function renameSheet(oldName, newName) {
 // Custom context menu
 function customContextMenu(node) {
   const tree = $('#sheet-tree').jstree(true);
-  
+
   const menu = {
     "addFolder": {
       "label": "Add Folder Here",
@@ -602,28 +598,28 @@ function customContextMenu(node) {
                 const sheets = context.workbook.worksheets;
                 sheets.load("items/name");
                 await context.sync();
-                
+
                 const existingNames = sheets.items.map(s => s.name.toLowerCase());
-                
+
                 // Check if the name exists and find next available name
                 let finalName = sheetName;
                 let counter = 2;
-                
+
                 while (existingNames.includes(finalName.toLowerCase())) {
                   finalName = `${sheetName} (${counter})`;
                   counter++;
                 }
-                
+
                 // Log if name was changed
                 if (finalName !== sheetName) {
                   console.log(`Sheet name "${sheetName}" already exists, using "${finalName}" instead`);
                 }
-                
+
                 // Create the sheet with the final name
                 const sheet = context.workbook.worksheets.add(finalName);
                 sheet.activate();
                 await context.sync();
-                
+
                 const nodeId = 'sheet_' + Date.now();
                 tree.create_node(node.id, {
                   id: nodeId,
@@ -638,7 +634,7 @@ function customContextMenu(node) {
                 }, 'last');
                 tree.open_node(node.id);
                 await saveStructureToStorage();
-                
+
                 // Show appropriate message
                 if (finalName !== sheetName) {
                   showMessage(`Sheet "${sheetName}" already exists. Created "${finalName}" instead.`, 'success');
@@ -675,7 +671,7 @@ function customContextMenu(node) {
         tree.select_node(node);
         pasteNodes();
       },
-      "_disabled": function() {
+      "_disabled": function () {
         // Disable if nothing is copied
         return copiedNodes.length === 0;
       }
@@ -686,21 +682,21 @@ function customContextMenu(node) {
         try {
           // Get fresh reference to the node
           const nodeToMove = tree.get_node(node.id);
-          
+
           if (!nodeToMove) {
             showMessage('Node not found', 'error');
             return;
           }
-          
+
           // Check if already at root
           if (nodeToMove.parent === '#') {
             showMessage(`"${node.text}" is already at root level`, 'info');
             return;
           }
-          
+
           // Move to root
           const moved = tree.move_node(nodeToMove, '#', 'last');
-          
+
           if (moved) {
             // Add a small delay before saving to let jsTree update
             setTimeout(() => {
@@ -729,7 +725,7 @@ function customContextMenu(node) {
       }
     }
   };
-  
+
   // Add hide option (only for sheets)
   if (node.data && node.data.isWorksheet) {
     menu.hide = {
@@ -740,12 +736,12 @@ function customContextMenu(node) {
             const sheet = context.workbook.worksheets.getItem(node.data.sheetName);
             sheet.visibility = Excel.SheetVisibility.hidden;
             await context.sync();
-            
+
             showMessage(`Sheet "${node.text}" hidden successfully!`, 'success');
           });
         } catch (error) {
           console.error("Error hiding sheet:", error);
-          
+
           // Check if it's the "can't hide all sheets" error
           if (error.message && error.message.includes("InvalidOperation")) {
             showMessage(`Cannot hide "${node.text}" - at least one sheet must remain visible in Excel.`, 'warning');
@@ -756,19 +752,19 @@ function customContextMenu(node) {
       }
     };
   }
-  
+
   // Add delete option
   menu.delete = {
     "label": "Delete",
     "action": async function () {
       // Check if multiple nodes are selected
       const selected = tree.get_selected(true);
-      
+
       if (selected.length > 1) {
         // Multiple items selected - delete all
         const sheets = selected.filter(n => n.data && n.data.isWorksheet);
         const folders = selected.filter(n => !n.data || !n.data.isWorksheet);
-        
+
         // Build confirmation message
         let message = 'Delete the following items?\n\n';
         if (sheets.length > 0) {
@@ -779,7 +775,7 @@ function customContextMenu(node) {
           message += `\nFolders (${folders.length}):\n`;
           folders.forEach(n => message += `  • ${n.text}\n`);
         }
-        
+
         showConfirm(message, async (confirmed) => {
           if (confirmed) {
             try {
@@ -793,18 +789,18 @@ function customContextMenu(node) {
                   showMessage(`Error deleting sheet "${n.text}": ${error.message}`, 'error');
                 }
               }
-              
+
               // Delete all nodes from tree
               for (const n of selected) {
                 tree.delete_node(n);
               }
-              
+
               // Save structure
               await saveStructureToStorage();
-              
+
               // Show success message
               showMessage(`Successfully deleted ${selected.length} item(s)`, 'success');
-              
+
             } catch (error) {
               console.error('Delete operation failed:', error);
               showMessage('Error during deletion: ' + error.message, 'error');
@@ -839,7 +835,7 @@ function customContextMenu(node) {
       }
     }
   };
-  
+
   return menu;
 }
 
@@ -869,6 +865,23 @@ async function saveStructure() {
   }
 }
 
+// Debounced save - prevents multiple rapid saves
+function debouncedSave() {
+  // Clear any pending save
+  if (saveDebounceTimeout) {
+    clearTimeout(saveDebounceTimeout);
+  }
+
+  // Schedule a new save after 300ms
+  saveDebounceTimeout = setTimeout(() => {
+    saveStructureToStorage()
+      .catch(err => {
+        console.error('Debounced save failed:', err);
+      });
+    saveDebounceTimeout = null;
+  }, 300);
+}
+
 // Save structure to Document Settings
 async function saveStructureToStorage() {
   if (!treeInitialized) {
@@ -887,43 +900,43 @@ async function saveStructureToStorage() {
 
     const treeData = tree.get_json('#', { flat: false });
     console.log('Tree data to save:', treeData); // DEBUG
-    
+
     const treeDataString = JSON.stringify(treeData);
-    
+
     // Check size (optional warning)
     const dataSize = treeDataString.length;
     console.log(`Tree data size: ${(dataSize / 1024).toFixed(2)} KB`);
-    
+
     if (dataSize > 1900000) { // ~1.9MB safety margin
       console.warn('Tree structure is very large, may hit storage limits');
       showMessage('Warning: Tree structure is very large', 'warning');
     }
-    
+
     console.log('About to call Excel.run...'); // DEBUG
-    
+
     await Excel.run(async (context) => {
       console.log('Inside Excel.run context'); // DEBUG
-      
+
       const settings = context.workbook.settings;
-      
+
       // Remove old setting if it exists
       const oldSetting = settings.getItemOrNullObject("treeStructure");
       await context.sync();
       console.log('After first sync'); // DEBUG
-      
+
       if (!oldSetting.isNullObject) {
         console.log('Removing old tree structure setting');
         oldSetting.delete();
         await context.sync();
         console.log('After delete sync'); // DEBUG
       }
-      
+
       // Add new setting
       console.log('Adding new tree structure setting');
       settings.add("treeStructure", treeDataString);
       await context.sync();
       console.log('After add sync'); // DEBUG
-      
+
       console.log('Structure saved successfully to Document Settings');
     });
   } catch (error) {
@@ -940,14 +953,14 @@ async function saveStructureToStorage() {
 // Load structure from Document Settings
 async function loadStructure() {
   console.log('Loading structure from Document Settings...');
-  
+
   try {
     await Excel.run(async (context) => {
       const settings = context.workbook.settings;
       const treeSetting = settings.getItemOrNullObject("treeStructure");
       treeSetting.load("value");
       await context.sync();
-      
+
       if (!treeSetting.isNullObject && treeSetting.value) {
         console.log('Found saved structure in Document Settings');
         const treeData = JSON.parse(treeSetting.value);
@@ -955,7 +968,7 @@ async function loadStructure() {
         tree.settings.core.data = treeData;
         tree.refresh();
 
-        $('#sheet-tree').one('refresh.jstree', function() {
+        $('#sheet-tree').one('refresh.jstree', function () {
           console.log('Tree refresh completed');
           registerWorksheetEventHandlers();
         });
@@ -963,7 +976,7 @@ async function loadStructure() {
         console.log('Structure loaded successfully');
         return;
       }
-      
+
       console.log('No saved structure found, loading default');
       await loadDefaultStructure();
     });
@@ -980,7 +993,7 @@ async function loadStructure() {
 // Load default structure from Excel sheets
 async function loadDefaultStructure() {
   console.log('Loading default structure from sheets...');
-  
+
   try {
     await Excel.run(async (context) => {
       const sheets = context.workbook.worksheets;
@@ -1007,11 +1020,11 @@ async function loadDefaultStructure() {
       tree.settings.core.data = treeData;
       tree.refresh();
 
-      $('#sheet-tree').one('refresh.jstree', function() {
+      $('#sheet-tree').one('refresh.jstree', function () {
         console.log('Tree refresh completed');
         registerWorksheetEventHandlers();
       });
-      
+
       // Save the default structure
       await saveStructureToStorage();
     });
@@ -1028,31 +1041,31 @@ async function registerWorksheetEventHandlers() {
     console.log('Event handlers already registered');
     return;
   }
-  
+
   console.log('Attempting to register worksheet event handlers...');
-  
+
   try {
     await Excel.run(async (context) => {
       const sheets = context.workbook.worksheets;
-      
+
       // Check if event handlers are supported
       if (typeof sheets.onAdded === 'undefined') {
         console.log('Event handlers not supported in this Excel version');
         return false;
       }
-      
+
       // Register the onAdded event handler
       console.log('Registering onAdded...');
       sheets.onAdded.add(onSheetAdded);
-      
+
       console.log('Registering onNameChanged...');
       sheets.onNameChanged.add(onSheetRenamed);
-      
+
       console.log('Registering onDeleted...');
       sheets.onDeleted.add(onSheetDeleted);
-      
+
       await context.sync();
-      
+
       eventHandlersRegistered = true;
       console.log('✓ All event handlers registered successfully');
       return true;
@@ -1070,15 +1083,15 @@ async function registerWorksheetEventHandlers() {
 // Handler function when a new sheet is added in Excel
 async function onSheetAdded(event) {
   console.log('Sheet added event triggered:', event);
-  
+
   if (!treeInitialized) {
     console.log('Tree not initialized yet, skipping event');
     return;
   }
-  
+
   try {
     await Excel.run(async (context) => {
-      
+
       let sheet;
       try {
         sheet = context.workbook.worksheets.getItem(event.worksheetId);
@@ -1088,38 +1101,38 @@ async function onSheetAdded(event) {
         await refreshTree();
         return;
       }
-      
+
       sheet.load("name, visibility");
       await context.sync();
-      
+
       console.log('New sheet detected:', sheet.name, 'Visibility:', sheet.visibility);
-      
+
       // Only add visible sheets to the tree
       if (sheet.visibility !== Excel.SheetVisibility.visible) {
         console.log('Sheet is hidden, not adding to tree');
         return;
       }
-      
+
       const tree = $('#sheet-tree').jstree(true);
-      
+
       if (!tree) {
         console.error('Tree instance not available');
         return;
       }
-      
+
       // Check if sheet already exists in tree (avoid duplicates)
       const currentNodes = tree.get_json('#', { flat: true });
-      const exists = currentNodes.some(node => 
-        node.data && 
-        node.data.isWorksheet && 
+      const exists = currentNodes.some(node =>
+        node.data &&
+        node.data.isWorksheet &&
         node.data.sheetName === sheet.name
       );
-      
+
       if (exists) {
         console.log('Sheet already exists in tree, skipping');
         return;
       }
-      
+
       // Add the new sheet to the tree (at root level)
       console.log('Adding new sheet to tree:', sheet.name);
       const nodeId = 'sheet_' + Date.now() + '_' + Math.random();
@@ -1134,13 +1147,13 @@ async function onSheetAdded(event) {
           nodeType: 'sheet'
         }
       }, 'last');
-      
+
       if (newNode) {
         console.log('Sheet node created successfully:', nodeId);
-        
+
         // Save the updated tree structure to document storage
         await saveStructureToStorage();
-        
+
         // Show success message to user
         showMessage(`Sheet "${sheet.name}" added to tree`, 'success');
       } else {
@@ -1159,17 +1172,18 @@ async function onSheetAdded(event) {
 async function onSheetRenamed(event) {
   console.log('========================================');
   console.log('Sheet renamed event triggered!');
-  console.log('Event object:', event);
-  console.log('Event worksheetId:', event.worksheetId);
   console.log('Event nameAfter:', event.nameAfter);
   console.log('Event nameBefore:', event.nameBefore);
   console.log('========================================');
-  
+
   if (!treeInitialized) {
     console.log('Tree not initialized yet, skipping event');
     return;
   }
-  
+
+  // ✅ SET FLAG TO PREVENT CIRCULAR EVENTS
+  isProcessingExcelEvent = true;
+
   try {
     await Excel.run(async (context) => {
       // Get the renamed sheet
@@ -1179,73 +1193,67 @@ async function onSheetRenamed(event) {
         sheet = context.workbook.worksheets.getItem(event.worksheetId);
         sheet.load("name, id");
         await context.sync();
-        console.log('Successfully loaded sheet. Name:', sheet.name, 'ID:', sheet.id);
+        console.log('Successfully loaded sheet. Name:', sheet.name);
       } catch (e) {
         console.error('Could not get sheet by ID:', e);
         console.log('Falling back to refreshTree()');
         await refreshTree();
         return;
       }
-      
+
       const newName = sheet.name;
       console.log('New sheet name:', newName);
-      
+
       const tree = $('#sheet-tree').jstree(true);
-      
+
       if (!tree) {
         console.error('Tree instance not available');
         return;
       }
-      
+
       // Get all current nodes
       const currentNodes = tree.get_json('#', { flat: true });
       console.log('Current tree nodes:', currentNodes.length);
-      console.log('Tree nodes with sheet data:', currentNodes.filter(n => n.data && n.data.isWorksheet).map(n => ({
-        id: n.id,
-        text: n.text,
-        sheetName: n.data.sheetName
-      })));
-      
+
       // Get all current Excel sheet names
       const sheets = context.workbook.worksheets;
       sheets.load("items/name, items/id");
       await context.sync();
-      
+
       const excelSheetNames = sheets.items.map(s => s.name);
       console.log('Current Excel sheet names:', excelSheetNames);
-      
+
       // Find the orphaned node (one that doesn't match any current Excel sheet)
       const orphanedNode = currentNodes.find(node =>
         node.data &&
         node.data.isWorksheet &&
         !excelSheetNames.includes(node.data.sheetName)
       );
-      
+
       if (orphanedNode) {
         console.log('Found orphaned node to update:');
         console.log('  - Node ID:', orphanedNode.id);
         console.log('  - Old name:', orphanedNode.data.sheetName);
         console.log('  - New name:', newName);
-        
-        // Update the node text and data
+
+        // Update the node text
         tree.rename_node(orphanedNode.id, newName);
-        orphanedNode.data.sheetName = newName;
-        
+
+        // Get fresh reference and update the data properly
+        const node = tree.get_node(orphanedNode.id);
+        node.data.sheetName = newName;
+
         console.log('Node renamed successfully');
-        
+
         // Save the updated structure
-        await saveStructureToStorage();
+        debouncedSave();
         console.log('Structure saved');
-        
+
         showMessage(`Sheet renamed to "${newName}" in tree`, 'success');
       } else {
         console.warn('Could not find orphaned node!');
-        console.log('This might mean:');
-        console.log('  1. The sheet was already updated in the tree');
-        console.log('  2. The sheet is not in the tree');
-        console.log('  3. There is a timing issue');
         console.log('Refreshing tree as fallback...');
-        await refreshTree();
+        debouncedSave();
       }
     });
   } catch (error) {
@@ -1253,6 +1261,10 @@ async function onSheetRenamed(event) {
     if (error.debugInfo) {
       console.error('Error details:', error.debugInfo);
     }
+  } finally {
+    // ✅ ALWAYS RESET FLAG WHEN DONE (even if there was an error)
+    isProcessingExcelEvent = false;
+    console.log('Reset isProcessingExcelEvent flag');
   }
 }
 
@@ -1260,12 +1272,12 @@ async function onSheetRenamed(event) {
 // Handler function when a sheet is deleted
 async function onSheetDeleted(event) {
   console.log('Sheet deleted event triggered:', event);
-  
+
   if (!treeInitialized) {
     console.log('Tree not initialized yet, skipping event');
     return;
   }
-  
+
   try {
     // Simply refresh the tree to remove deleted sheets
     await refreshTree();
@@ -1281,20 +1293,20 @@ async function testEventHandlers() {
   console.log('=== EVENT HANDLER TEST ===');
   console.log('eventHandlersRegistered flag:', eventHandlersRegistered);
   console.log('treeInitialized flag:', treeInitialized);
-  
+
   try {
     await Excel.run(async (context) => {
       const sheets = context.workbook.worksheets;
-      
+
       console.log('sheets.onAdded type:', typeof sheets.onAdded);
       console.log('sheets.onNameChanged type:', typeof sheets.onNameChanged);
       console.log('sheets.onDeleted type:', typeof sheets.onDeleted);
-      
+
       // Try to manually trigger a test
       console.log('Attempting to register a test handler...');
-      
+
       if (typeof sheets.onNameChanged !== 'undefined') {
-        sheets.onNameChanged.add(function(event) {
+        sheets.onNameChanged.add(function (event) {
           console.log('🔥 TEST RENAME EVENT FIRED! 🔥', event);
         });
         await context.sync();
@@ -1311,7 +1323,7 @@ async function testEventHandlers() {
 
 async function hideOtherSheets() {
   console.log('Hide others clicked');
-  
+
   if (!treeInitialized) {
     showMessage('Tree is still loading, please wait...', 'warning');
     return;
@@ -1322,15 +1334,15 @@ async function hideOtherSheets() {
       // Get the active sheet
       const activeSheet = context.workbook.worksheets.getActiveWorksheet();
       activeSheet.load("name");
-      
+
       // Get all sheets
       const sheets = context.workbook.worksheets;
       sheets.load("items/name, items/visibility");
       await context.sync();
-      
+
       const activeSheetName = activeSheet.name;
       let hiddenCount = 0;
-      
+
       // Hide all sheets except the active one
       sheets.items.forEach(sheet => {
         if (sheet.name !== activeSheetName && sheet.visibility === Excel.SheetVisibility.visible) {
@@ -1338,14 +1350,14 @@ async function hideOtherSheets() {
           hiddenCount++;
         }
       });
-      
+
       await context.sync();
-      
+
       console.log(`Hidden ${hiddenCount} sheets, kept "${activeSheetName}" visible`);
-      
+
       // Refresh the tree to reflect changes
       await refreshTree();
-      
+
       showMessage(`Hidden ${hiddenCount} sheet(s). Only "${activeSheetName}" is visible.`, 'success');
     });
   } catch (error) {
@@ -1362,11 +1374,11 @@ async function checkSheetNameExists(sheetName) {
       const sheets = context.workbook.worksheets;
       sheets.load("items/name");
       await context.sync();
-      
-      const exists = sheets.items.some(sheet => 
+
+      const exists = sheets.items.some(sheet =>
         sheet.name.toLowerCase() === sheetName.toLowerCase()
       );
-      
+
       return exists;
     });
   } catch (error) {
@@ -1379,17 +1391,17 @@ async function checkSheetNameExists(sheetName) {
 function copyNodes() {
   const tree = $('#sheet-tree').jstree(true);
   const selected = tree.get_selected(true);
-  
+
   if (selected.length === 0) {
     showMessage('No items selected to copy', 'warning');
     return;
   }
-  
+
   // Store copies of the selected nodes
   copiedNodes = selected.map(node => {
     // Get the full node data including children
     const nodeJson = tree.get_json(node.id);
-    
+
     return {
       text: node.text,
       type: node.type,
@@ -1397,7 +1409,7 @@ function copyNodes() {
       children: nodeJson && nodeJson.children ? nodeJson.children : []
     };
   });
-  
+
   console.log('Copied nodes:', copiedNodes);
   showMessage(`Copied ${copiedNodes.length} item(s)`, 'success');
 }
@@ -1408,13 +1420,13 @@ async function pasteNodes() {
     showMessage('Nothing to paste', 'warning');
     return;
   }
-  
+
   const tree = $('#sheet-tree').jstree(true);
   const selected = tree.get_selected();
   const parent = selected.length > 0 ? selected[0] : '#';
-  
+
   console.log('Pasting', copiedNodes.length, 'nodes to parent:', parent);
-  
+
   try {
     for (const nodeToCopy of copiedNodes) {
       if (nodeToCopy.data && nodeToCopy.data.isWorksheet) {
@@ -1425,10 +1437,10 @@ async function pasteNodes() {
         await copyFolderStructure(nodeToCopy, parent, tree);
       }
     }
-    
+
     await saveStructureToStorage();
     showMessage(`Pasted ${copiedNodes.length} item(s) successfully`, 'success');
-    
+
   } catch (error) {
     console.error('Paste failed:', error);
     showMessage('Error pasting: ' + error.message, 'error');
@@ -1442,30 +1454,30 @@ async function duplicateSheet(sheetName, parentNode, tree) {
     const sourceSheet = context.workbook.worksheets.getItem(sheetName);
     sourceSheet.load("name");
     await context.sync();
-    
+
     // Get all existing sheet names to find a unique name
     const sheets = context.workbook.worksheets;
     sheets.load("items/name");
     await context.sync();
-    
+
     const existingNames = sheets.items.map(s => s.name.toLowerCase());
-    
+
     // Find a unique name for the copy
     let copyName = `${sheetName} Copy`;
     let counter = 2;
-    
+
     while (existingNames.includes(copyName.toLowerCase())) {
       copyName = `${sheetName} Copy (${counter})`;
       counter++;
     }
-    
+
     // Copy the sheet
     const copiedSheet = sourceSheet.copy(Excel.WorksheetPositionType.end);
     copiedSheet.name = copyName;
     await context.sync();
-    
+
     console.log(`Duplicated sheet "${sheetName}" as "${copyName}"`);
-    
+
     // Add to tree
     const nodeId = 'sheet_' + Date.now() + '_' + Math.random();
     tree.create_node(parentNode, {
@@ -1479,7 +1491,7 @@ async function duplicateSheet(sheetName, parentNode, tree) {
         nodeType: 'sheet'
       }
     }, 'last');
-    
+
     tree.open_node(parentNode);
   });
 }
@@ -1498,9 +1510,9 @@ async function copyFolderStructure(folderNode, parentNode, tree) {
       nodeType: 'folder'
     }
   }, 'last');
-  
+
   tree.open_node(parentNode);
-  
+
   // Recursively copy children
   if (folderNode.children && folderNode.children.length > 0) {
     for (const child of folderNode.children) {

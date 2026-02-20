@@ -24,12 +24,7 @@
 
 <body>
     <div id="content">
-        <h2>Sheet Hierarchy</h2>
-        <div id="message-bar" class="message-bar" style="display: none;">
-            <span id="message-text"></span>
-            <button id="message-close" class="message-close">×</button>
-        </div>
-        
+
         <!-- Control Buttons -->
         <div id="controls">
             <button id="add-folder" class="control-btn" title="Add Folder">
@@ -56,8 +51,11 @@
         <!-- Tree View -->
         <div id="sheet-tree"></div>
         
+        <div id="status-bar" class="status-bar">
+            <span id="status-text">Ready</span>
+        </div>
+
     </div>
 
-    <script src="taskpane.js"></script>
 </body>
 </html>
